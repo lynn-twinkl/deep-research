@@ -14,8 +14,9 @@ import { generateFeedback } from './feedback';
 // Initialize commander for command-line argument parsing
 const program = new Command();
 program
-  .option('--output-dir <dir>', 'Output directory', '.')
-  .option('--output-file <file>', 'Output file name');
+  .option('--outdir <dir>', 'Output directory', '.')
+  .option('--filename <file>', 'Output file name')
+  .option('--query-file <file>', 'File containing the research query (md or txt)');
 program.parse(process.argv);
 const options = program.opts();
 
@@ -42,15 +43,24 @@ function askQuestion(query: string): Promise<string> {
 async function run() {
   console.log('Using model: ', getModel().modelId);
 
-  // Get initial query
-  const initialQuery = await askQuestion('What would you like to research? ');
+  // Get initial query either from file or prompt the user
+  let initialQuery: string;
+  if (options.queryFile) {
+    try {
+      initialQuery = await fs.readFile(options.queryFile, 'utf-8');
+      console.log(`Loaded research query from ${options.queryFile}`);
+    } catch (error) {
+      console.error(`Failed to read query file ${options.queryFile}:`, error);
+      process.exit(1);
+    }
+  } else {
+    initialQuery = await askQuestion('What would you like to research? ');
+  }
 
   // Get breadth and depth parameters
   const breadth =
     parseInt(
-      await askQuestion(
-        'Enter research breadth (recommended 2-10, default 4): ',
-      ),
+      await askQuestion('Enter research breadth (recommended 2-10, default 4): '),
       10,
     ) || 4;
   const depth =
@@ -59,9 +69,7 @@ async function run() {
       10,
     ) || 2;
   const isReport =
-    (await askQuestion(
-      'Do you want to generate a long report or a specific answer? (report/answer, default report): ',
-    )) !== 'answer';
+    (await askQuestion('Do you want to generate a long report or a specific answer? (report/answer, default report): ')) !== 'answer';
 
   let combinedQuery = initialQuery;
   if (isReport) {
@@ -72,9 +80,7 @@ async function run() {
       query: initialQuery,
     });
 
-    log(
-      '\nTo better understand your research needs, please answer these follow-up questions:',
-    );
+    log('\nTo better understand your research needs, please answer these follow-up questions:');
 
     // Collect answers to follow-up questions
     const answers: string[] = [];
